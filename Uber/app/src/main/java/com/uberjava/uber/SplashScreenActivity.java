@@ -26,8 +26,10 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.iid.FirebaseInstanceId;
 import com.uberjava.uber.Common.Common;
 import com.uberjava.uber.Model.RiderModel;
+import com.uberjava.uber.Utils.UserUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -100,13 +102,13 @@ public class SplashScreenActivity extends AppCompatActivity {
             if(user != null)
             {
                 //Update token
-//                FirebaseInstanceId.getInstance()
-//                        .getInstanceId()
-//                        .addOnFailureListener(e -> Toast.makeText(SplashScreenActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show())
-//                        .addOnSuccessListener(instanceIdResult -> {
-//                            Log.d("TOKEN", instanceIdResult.getToken());
-//                            UserUtils.updateToken(SplashScreenActivity.this, instanceIdResult. getToken());
-//                        });
+                FirebaseInstanceId.getInstance()
+                        .getInstanceId()
+                        .addOnFailureListener(e -> Toast.makeText(SplashScreenActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show())
+                        .addOnSuccessListener(instanceIdResult -> {
+                            Log.d("TOKEN", instanceIdResult.getToken());
+                            UserUtils.updateToken(SplashScreenActivity.this, instanceIdResult. getToken());
+                        });
                 checkUserFromFirebase();
             }
             else
