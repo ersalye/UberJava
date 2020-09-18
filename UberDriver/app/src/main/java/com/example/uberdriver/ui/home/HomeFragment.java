@@ -74,6 +74,8 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback {
 
     SupportMapFragment mapFragment;
 
+    private boolean isFirstTime=true;
+
     //Online System
     DatabaseReference onlineRef, currentUserRef, driversLocationRef;
     GeoFire geoFire;
@@ -81,7 +83,10 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback {
         @Override
         public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
             if (dataSnapshot.exists() && currentUserRef != null)
+            {
                 currentUserRef.onDisconnect().removeValue();
+                isFirstTime = true;
+            }
         }
 
         @Override
@@ -132,9 +137,9 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback {
         }
 
         locatonRequest = new LocationRequest();
-        locatonRequest.setSmallestDisplacement(10f);
-        locatonRequest.setInterval(5000);
-        locatonRequest.setFastestInterval(3000);
+        locatonRequest.setSmallestDisplacement(50f); // 50m
+        locatonRequest.setInterval(15000); // 15sec
+        locatonRequest.setFastestInterval(3000); //10 sec
         locatonRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
 
@@ -171,9 +176,17 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback {
                                                 locationResult.getLastLocation().getLongitude()),
                                         (key, error) -> {
                                             if (error != null)
-                                                Snackbar.make(mapFragment.getView(), error.getMessage(), Snackbar.LENGTH_LONG).show();
+                                                Snackbar.make(mapFragment.getView(), error.getMessage(), Snackbar.LENGTH_LONG)
+                                                        .show();
                                             else
-                                                Snackbar.make(mapFragment.getView(), "You're online", Snackbar.LENGTH_LONG).show();
+                                            {
+                                                if (isFirstTime)
+                                                {
+                                                    Snackbar.make(mapFragment.getView(), "You're online", Snackbar.LENGTH_LONG)
+                                                            .show();
+                                                    isFirstTime=false;
+                                                }
+                                            }
                                         });
 
 

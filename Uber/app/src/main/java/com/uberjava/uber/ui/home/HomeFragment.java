@@ -1,18 +1,21 @@
 package com.uberjava.uber.ui.home;
 
 import android.Manifest;
+import android.animation.ValueAnimator;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.LinearInterpolator;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 
@@ -38,6 +41,7 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MapStyleOptions;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.firebase.database.ChildEventListener;
@@ -55,10 +59,16 @@ import com.karumi.dexter.listener.single.PermissionListener;
 import com.uberjava.uber.Callback.IFirebaseDriverInfoListener;
 import com.uberjava.uber.Callback.IFirebaseFailedListener;
 import com.uberjava.uber.Common.Common;
+import com.uberjava.uber.Model.AnimationModel;
 import com.uberjava.uber.Model.DriverGeoModel;
 import com.uberjava.uber.Model.DriverInfoModel;
 import com.uberjava.uber.Model.GeoQueryModel;
 import com.uberjava.uber.R;
+import com.uberjava.uber.Remote.IGoogleAPI;
+import com.uberjava.uber.Remote.RetrofitClient;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.sql.Driver;
@@ -67,6 +77,7 @@ import java.util.Locale;
 
 import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.schedulers.Schedulers;
 
 public class HomeFragment extends Fragment implements OnMapReadyCallback, IFirebaseFailedListener, IFirebaseDriverInfoListener {
@@ -93,6 +104,24 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback, IFireb
     IFirebaseFailedListener iFirebaseFailedListener;
     private String cityName;
 
+    //
+    private CompositeDisposable compositeDisposable = new CompositeDisposable();
+    private IGoogleAPI iGoogleAPI;
+
+    //Moving marker
+    private List<LatLng> polylineList;
+    private Handler handler;
+    private int index, next;
+    private LatLng start, end;
+    private float v;
+    private double lat, lng;
+
+
+    @Override
+    public void onStop() {
+        compositeDisposable.clear();
+        super.onStop();
+    }
 
     @Override
     public void onDestroy() {
@@ -124,6 +153,8 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback, IFireb
     }
 
     private void init() {
+
+        iGoogleAPI = RetrofitClient.getInstance().create(IGoogleAPI.class);
 
         iFirebaseFailedListener = this;
         iFirebaseDriverInfoListener = this;
@@ -417,7 +448,39 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback, IFireb
                         if (Common.markerList.get(driverGeoModel.getKey()) != null)
                             Common.markerList.get(driverGeoModel.getKey()).remove(); //Remove marker
                         Common.markerList.remove(driverGeoModel.getKey()); //Removemarker info frome hash map
+                        Common.driverLocationSubcribe.remove(driverGeoModel.getKey()); //Remove driver infomation too
                         driverLocation.removeEventListener(this); // Remove event listener
+                    }
+                    else
+                    {
+                        if (Common.markerList.get(driverGeoModel.getKey()) != null)
+                        {
+                            GeoQueryModel geoQueryModel = dataSnapshot.getValue(GeoQueryModel.class);
+                            AnimationModel animationModel = new AnimationModel(false, geoQueryModel);
+                            if (Common.driverLocationSubcribe.get(driverGeoModel.getKey()) != null)
+                            {
+                                Marker currentMarker = Common.markerList.get(driverGeoModel.getKey());
+                                AnimationModel oldPosition = Common.driverLocationSubcribe.get(driverGeoModel.getKey());
+
+                                String from = new StringBuilder()
+                                        .append(oldPosition.getGeoQueryModel().getL().get(0))
+                                        .append(",")
+                                        .append(oldPosition.getGeoQueryModel().getL().get(1))
+                                        .toString();
+                                String to = new StringBuilder()
+                                        .append(animationModel.getGeoQueryModel().getL().get(0))
+                                        .append(",")
+                                        .append(animationModel.getGeoQueryModel().getL().get(1))
+                                        .toString();
+
+                                moveMarkerAnimation(driverGeoModel.getKey(),animationModel,currentMarker,from,to);
+                            }
+                            else
+                            {
+                                //First location init
+                                Common.driverLocationSubcribe.put(driverGeoModel.getKey(),animationModel);
+                            }
+                        }
                     }
                 }
 
@@ -426,6 +489,84 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback, IFireb
                     Snackbar.make(getView(),databaseError.getMessage(),Snackbar.LENGTH_SHORT).show();
                 }
             });
+        }
+    }
+
+    private void moveMarkerAnimation(String key, AnimationModel animationModel, Marker currentMarker, String from, String to) {
+        if (!animationModel.isRun())
+        {
+            //Request API
+            compositeDisposable.add(iGoogleAPI.getDirections("driving",
+                    "less_driving",
+                    from,to,
+                    getString(R.string.google_api_key))
+            .subscribeOn(Schedulers.io())
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe(returnResult -> {
+                Log.d("API_RETURN", returnResult);
+
+                try {
+                    //Parse JSON
+                    JSONObject jsonObject = new JSONObject(returnResult);
+                    JSONArray jsonArray = jsonObject.getJSONArray("routes");
+                    for (int i=0; i< jsonArray.length();i++)
+                    {
+                        JSONObject route = jsonArray.getJSONObject(i);
+                        JSONObject poly = route.getJSONObject("overview_polyline");
+                        String polyline = poly.getString("points");
+                        polylineList = Common.decodePoly(polyline);
+                    }
+
+                    //Moving
+                    handler = new Handler();
+                    index = -1;
+                    next = 1;
+
+                    Runnable runnable = new Runnable() {
+                        @Override
+                        public void run() {
+                            if (polylineList.size() > 1)
+                            {
+                                if (index < polylineList.size() -2){
+                                    index++;
+                                    next = index+1;
+                                    start = polylineList.get(index);
+                                    end = polylineList.get(next);
+                                }
+
+                                ValueAnimator valueAnimator = ValueAnimator.ofInt(0,1);
+                                valueAnimator.setDuration(3000);
+                                valueAnimator.setInterpolator(new LinearInterpolator());
+                                valueAnimator.addUpdateListener(value -> {
+                                    v = value.getAnimatedFraction();
+                                    lat = v*end.latitude + (1-v)*start.latitude;
+                                    lng = v*end.longitude + (1-v)*start.longitude;
+                                    LatLng newPos = new LatLng(lat,lng);
+                                    currentMarker.setPosition(newPos);
+                                    currentMarker.setAnchor(0.5f,0.5f);
+                                    currentMarker.setRotation(Common.getBearing(start,newPos));
+                                });
+
+                                valueAnimator.start();
+                                if (index < polylineList.size() -2) // Reach destination
+                                    handler.postDelayed(this, 1500);
+                                else if (index < polylineList.size() - 1) // Done
+                                {
+                                    animationModel.setRun(false);
+                                    Common.driverLocationSubcribe.put(key,animationModel); // Update data
+                                }
+                            }
+                        }
+                    };
+
+                    // Run handler
+                    handler.postDelayed(runnable, 1500);
+
+                }catch (Exception e)
+                {
+                    Snackbar.make(getView(),e.getMessage(),Snackbar.LENGTH_LONG).show();
+                }
+            }));
         }
     }
 }

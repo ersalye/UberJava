@@ -79,6 +79,10 @@ dependencies {
     //FCM
     implementation 'com.google.firebase:firebase-messaging:20.2.4'
 
+    //Retrofit
+    implementation 'com.squareup.retrofit2:adapter-rxjava2:2.6.1'
+    implementation 'com.squareup.retrofit2:converter-scalars:2.6.1'
+    implementation 'com.squareup.retrofit2:converter-gson:2.6.1'
 
 
 
