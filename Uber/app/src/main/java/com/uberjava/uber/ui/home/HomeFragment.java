@@ -2,6 +2,7 @@ package com.uberjava.uber.ui.home;
 
 import android.Manifest;
 import android.animation.ValueAnimator;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.location.Address;
@@ -45,6 +46,7 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.libraries.places.api.Places;
 import com.google.android.libraries.places.api.model.Place;
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment;
@@ -69,11 +71,14 @@ import com.uberjava.uber.Common.Common;
 import com.uberjava.uber.Model.AnimationModel;
 import com.uberjava.uber.Model.DriverGeoModel;
 import com.uberjava.uber.Model.DriverInfoModel;
+import com.uberjava.uber.Model.EventBus.SelectePlaceEvent;
 import com.uberjava.uber.Model.GeoQueryModel;
 import com.uberjava.uber.R;
 import com.uberjava.uber.Remote.IGoogleAPI;
 import com.uberjava.uber.Remote.RetrofitClient;
+import com.uberjava.uber.RequestDriverActivity;
 
+import org.greenrobot.eventbus.EventBus;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -126,8 +131,6 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback, IFireb
     private IGoogleAPI iGoogleAPI;
 
 
-
-
     @Override
     public void onStop() {
         compositeDisposable.clear();
@@ -165,7 +168,7 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback, IFireb
     }
 
     private void initViews(View root) {
-        ButterKnife.bind(this,root);
+        ButterKnife.bind(this, root);
 
         Common.setWelcomeMessage(txt_welcome);
 
@@ -173,15 +176,31 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback, IFireb
 
     private void init() {
 
-        Places.initialize(getContext(),getString(R.string.google_maps_key));
-        autocompleteSupportFragment = (AutocompleteSupportFragment)getChildFragmentManager()
-        .findFragmentById(R.id.autoComplete_fragment);
-        autocompleteSupportFragment.setPlaceFields(Arrays.asList(Place.Field.ID,Place.Field.ADDRESS,Place.Field.NAME,Place.Field.LAT_LNG));
+        Places.initialize(getContext(), getString(R.string.google_maps_key));
+        autocompleteSupportFragment = (AutocompleteSupportFragment) getChildFragmentManager()
+                .findFragmentById(R.id.autoComplete_fragment);
+        autocompleteSupportFragment.setPlaceFields(Arrays.asList(Place.Field.ID, Place.Field.ADDRESS, Place.Field.NAME, Place.Field.LAT_LNG));
         autocompleteSupportFragment.setHint(getString(R.string.where_to));
         autocompleteSupportFragment.setOnPlaceSelectedListener(new PlaceSelectionListener() {
             @Override
             public void onPlaceSelected(@NonNull Place place) {
-                Snackbar.make(getView(), ""+place.getLatLng(),Snackbar.LENGTH_LONG).show();
+//                Snackbar.make(getView(), ""+place.getLatLng(),Snackbar.LENGTH_LONG).show();
+                if (ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                        ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    Snackbar.make(getView(), getString(R.string.permission_require),Snackbar.LENGTH_LONG).show();
+                    return;
+                }
+                fusedLocationProviderClient.getLastLocation()
+                        .addOnSuccessListener(location -> {
+
+                            LatLng origin = new LatLng(location.getLatitude(),location.getLongitude());
+                            LatLng destination = new LatLng(place.getLatLng().latitude,place.getLatLng().longitude);
+
+                            startActivity(new Intent(getContext(), RequestDriverActivity.class));
+                            EventBus.getDefault().post(new SelectePlaceEvent(origin,destination));
+
+                        });
+
             }
 
             @Override
