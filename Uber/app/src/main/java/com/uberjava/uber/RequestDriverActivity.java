@@ -7,18 +7,22 @@ import android.Manifest;
 import android.animation.ValueAnimator;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.JointType;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
@@ -29,6 +33,7 @@ import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.maps.model.SquareCap;
 import com.google.android.material.snackbar.Snackbar;
+import com.google.maps.android.ui.IconGenerator;
 import com.uberjava.uber.Common.Common;
 import com.uberjava.uber.Model.EventBus.SelectePlaceEvent;
 import com.uberjava.uber.Remote.IGoogleAPI;
@@ -149,9 +154,10 @@ public class RequestDriverActivity extends FragmentActivity implements OnMapRead
     }
 
     private void drawPath(SelectePlaceEvent selectePlaceEvent) {
+        //Request API
         compositeDisposable.add(iGoogleAPI.getDirections("driving",
                 "less_driving",
-                selectePlaceEvent.getOriginString(),selectePlaceEvent.getDestinatinString(),
+                selectePlaceEvent.getOriginString(),selectePlaceEvent.getDestinationString(),
                 getString(R.string.google_api_key))
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -188,13 +194,13 @@ public class RequestDriverActivity extends FragmentActivity implements OnMapRead
                         blackPolyline = mMap.addPolyline(blackPolylineOptions);
 
                         //Animator
-                        ValueAnimator valueAnimator = ValueAnimator.ofInt(0,1);
+                        ValueAnimator valueAnimator = ValueAnimator.ofInt(0,100);
                         valueAnimator.setDuration(1100);
                         valueAnimator.setRepeatCount(ValueAnimator.INFINITE);
                         valueAnimator.setInterpolator(new LinearInterpolator());
                         valueAnimator.addUpdateListener(value -> {
                             List<LatLng> points = greyPolyline.getPoints();
-                            int percentValue = (int)valueAnimator.getAnimatedValue();
+                            int percentValue = (int)value.getAnimatedValue();
                             int size = points.size();
                             int newPoints = (int)(size*(percentValue/100.0f));
                             List<LatLng> p = points.subList(0,newPoints);
@@ -208,7 +214,25 @@ public class RequestDriverActivity extends FragmentActivity implements OnMapRead
                                 .build();
 
                         //Add car icon for origin
-                        
+                        JSONObject object = jsonArray.getJSONObject(0);
+                        JSONArray legs = object.getJSONArray("legs");
+                        JSONObject legObjects = legs.getJSONObject(0);
+
+                        JSONObject time = legObjects.getJSONObject("duration");
+                        String duration = time.getString("text");
+
+                        String start_address = legObjects.getString("start_address");
+                        String end_address = legObjects.getString("end_address");
+
+                        addOriginMarker(duration, start_address);
+
+                        addDestinationMarker(end_address);
+
+                        mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(latLngBounds,160));
+                        mMap.moveCamera(CameraUpdateFactory.zoomTo(mMap.getCameraPosition().zoom-1));
+
+
+
 
 
 
@@ -217,10 +241,47 @@ public class RequestDriverActivity extends FragmentActivity implements OnMapRead
 
                     }catch (Exception e)
                     {
-                        Snackbar.make(getView(),e.getMessage(),Snackbar.LENGTH_LONG).show();
+//                        Snackbar.make(getView(),e.getMessage(),Snackbar.LENGTH_LONG).show();
+                        Toast.makeText(this,e.getMessage(),Toast.LENGTH_SHORT).show();
                     }
                 }, error->{
                     //
                 }));
+    }
+
+    private void addDestinationMarker(String end_address) {
+        View view = getLayoutInflater().inflate(R.layout.destination_info_windows,null);
+        TextView txt_destination = (TextView)view.findViewById(R.id.txt_destination);
+
+        txt_destination.setText(Common.formatAddress(end_address));
+
+        IconGenerator generator = new IconGenerator(this);
+        generator.setContentView(view);
+        generator.setBackground(new ColorDrawable(Color.TRANSPARENT));
+        Bitmap icon = generator.makeIcon();
+
+        destinationMarker = mMap.addMarker(new MarkerOptions()
+                .icon(BitmapDescriptorFactory.fromBitmap(icon))
+                .position(selectePlaceEvent.getDestination()));
+    }
+
+    private void addOriginMarker(String duration, String start_address) {
+        View view = getLayoutInflater().inflate(R.layout.origin_info_windows,null);
+
+        TextView txt_time = (TextView)view.findViewById(R.id.txt_time);
+        TextView txt_origin = (TextView)view.findViewById(R.id.txt_origin);
+
+        txt_time.setText(Common.formatDuration(duration));
+        txt_origin.setText(Common.formatAddress(start_address));
+
+        //Creat icon of marker
+        IconGenerator generator = new IconGenerator(this);
+        generator.setContentView(view);
+        generator.setBackground(new ColorDrawable(Color.TRANSPARENT));
+        Bitmap icon = generator.makeIcon();
+
+        originMarker = mMap.addMarker(new MarkerOptions()
+        .icon(BitmapDescriptorFactory.fromBitmap(icon))
+        .position(selectePlaceEvent.getOrigin()));
     }
 }

@@ -151,4 +151,16 @@ public class Common {
         else
             txt_welcome.setText(new StringBuilder("Good evening."));
     }
+
+    public static String formatDuration(String duration) {
+        if (duration.contains("mins"))
+            return duration.substring(0,duration.length()-1); //Remove letter "s"
+        else
+            return duration;
+    }
+
+    public static String formatAddress(String start_address) {
+        int firstIndexOfComma = start_address.indexOf(",");
+        return start_address.substring(0,firstIndexOfComma); //Get only address
+    }
 }

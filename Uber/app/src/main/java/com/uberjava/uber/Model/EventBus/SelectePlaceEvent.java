@@ -34,7 +34,7 @@ public class SelectePlaceEvent {
                 .toString();
     }
 
-    public String getDestinatinString() {
+    public String getDestinationString() {
         return new StringBuilder()
                 .append(destination.latitude)
                 .append(",")
