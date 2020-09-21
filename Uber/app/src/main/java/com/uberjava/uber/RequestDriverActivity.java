@@ -157,7 +157,8 @@ public class RequestDriverActivity extends FragmentActivity implements OnMapRead
         //Request API
         compositeDisposable.add(iGoogleAPI.getDirections("driving",
                 "less_driving",
-                selectePlaceEvent.getOriginString(),selectePlaceEvent.getDestinationString(),
+                selectePlaceEvent.getOriginString(),
+                selectePlaceEvent.getDestinationString(),
                 getString(R.string.google_api_key))
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())

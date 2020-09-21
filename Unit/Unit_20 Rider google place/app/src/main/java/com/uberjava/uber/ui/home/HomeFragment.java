@@ -217,7 +217,6 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback, IFireb
                     firstTime = false;
 
                     setRestrictPlacesInCountry(locationResult.getLastLocation());
-
                 } else {
                     previousLocation = currentLocation;
                     currentLocation = locationResult.getLastLocation();
@@ -270,9 +269,8 @@ public class HomeFragment extends Fragment implements OnMapReadyCallback, IFireb
                         addressList = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
                         if (addressList.size() >0)
                             cityName = addressList.get(0).getLocality();
-                        if (TextUtils.isEmpty(cityName)) {
-
-                            //Query
+                        if (!TextUtils.isEmpty(cityName)) {
+                          //Query
                             DatabaseReference driver_location_ref = FirebaseDatabase.getInstance()
                                     .getReference(Common.DRIVERS_LOCATION_REFERENCES)
                                     .child(cityName);
